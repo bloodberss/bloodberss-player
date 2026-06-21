@@ -1,0 +1,44 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d1416"/>
+      <stop offset="100%" stop-color="#0b0708"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff5c6c"/>
+      <stop offset="60%" stop-color="#ff2d43"/>
+      <stop offset="100%" stop-color="#7a0f23"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- cat ears -->
+  <path d="M146 168 L186 92 L226 172 Z" fill="url(#red)"/>
+  <path d="M286 172 L326 92 L366 168 Z" fill="url(#red)"/>
+  <path d="M156 170 L186 118 L214 172 Z" fill="#0b0708" opacity="0.55"/>
+  <path d="M298 172 L326 118 L356 170 Z" fill="#0b0708" opacity="0.55"/>
+
+  <!-- head -->
+  <circle cx="256" cy="266" r="118" fill="url(#red)"/>
+
+  <!-- face mask (dark) so wave + eyes sit on darker area -->
+  <circle cx="256" cy="278" r="92" fill="#150f10"/>
+
+  <!-- closed/happy cat eyes as simple curves -->
+  <path d="M198 252 q18 -22 36 0" stroke="#f4ebec" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M278 252 q18 -22 36 0" stroke="#f4ebec" stroke-width="9" fill="none" stroke-linecap="round"/>
+
+  <!-- nose -->
+  <path d="M246 286 L266 286 L256 298 Z" fill="#ff5c6c"/>
+
+  <!-- whiskers -->
+  <path d="M150 296 L206 290" stroke="#a3868a" stroke-width="5" stroke-linecap="round"/>
+  <path d="M148 314 L206 312" stroke="#a3868a" stroke-width="5" stroke-linecap="round"/>
+  <path d="M362 296 L306 290" stroke="#a3868a" stroke-width="5" stroke-linecap="round"/>
+  <path d="M364 314 L306 312" stroke="#a3868a" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- wave / sound mouth -->
+  <path d="M210 332 q12 -26 23 0 q12 26 23 0 q12 -26 23 0 q12 26 23 0"
+        stroke="#ff5c6c" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
