@@ -492,6 +492,15 @@ body.has-wallpaper::before{
   font-family:var(--font-display);font-weight:800;font-size:34px;color:#fff;
 }
 .profile-hero-avatar img{width:100%;height:100%;object-fit:cover;}
+.profile-avatar-wrap{position:relative;flex-shrink:0;}
+.avatar-upload-btn{
+  position:absolute;right:-3px;bottom:-3px;width:28px;height:28px;border-radius:50%;
+  background:var(--red-bright);color:#fff;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border:2px solid var(--bg-elevated);box-shadow:0 2px 8px rgba(0,0,0,.45);
+  transition:background .15s,transform .15s;
+}
+.avatar-upload-btn:hover{background:var(--red);transform:scale(1.06);}
+.avatar-upload-btn.uploading{opacity:.5;pointer-events:none;}
 .profile-hero-info{flex:1;min-width:200px;}
 .profile-hero-name{font-family:var(--font-display);font-weight:800;font-size:26px;}
 .profile-hero-meta{color:var(--text-muted);font-size:13px;margin-top:6px;}
@@ -973,7 +982,15 @@ body.has-wallpaper::before{
         </div>
       </div>
       <div class="profile-hero">
-        <div class="profile-hero-avatar" id="profile-avatar">?</div>
+        <div class="profile-avatar-wrap">
+          <div class="profile-hero-avatar" id="profile-avatar">?</div>
+          <label for="avatar-file-input" class="avatar-upload-btn" title="Изменить аватарку">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <path d="M4 13.5V20h6.5L20 10.5 13.5 4 4 13.5z"/>
+            </svg>
+          </label>
+          <input type="file" id="avatar-file-input" accept="image/png,image/jpeg,image/webp" hidden>
+        </div>
         <div class="profile-hero-info">
           <div class="profile-hero-name" id="profile-name">—</div>
           <div class="profile-hero-meta" id="profile-meta">—</div>
@@ -1741,9 +1758,18 @@ audio.addEventListener('pause', ()=>{
   document.body.classList.remove('is-playing');
   document.getElementById('pb-play-icon').setAttribute('d','M8 5v14l11-7z');
 });
+function paintRangeFill(el){
+  const min = parseFloat(el.min) || 0;
+  const max = parseFloat(el.max) || 100;
+  const val = parseFloat(el.value) || 0;
+  const pct = max > min ? ((val - min) / (max - min)) * 100 : 0;
+  el.style.background = `linear-gradient(to right, var(--red-bright) 0%, var(--red-bright) ${pct}%, var(--surface-hover) ${pct}%, var(--surface-hover) 100%)`;
+}
 audio.addEventListener('timeupdate', ()=>{
   if(!audio.duration) return;
-  document.getElementById('progress').value = (audio.currentTime/audio.duration)*100;
+  const progressEl = document.getElementById('progress');
+  progressEl.value = (audio.currentTime/audio.duration)*100;
+  paintRangeFill(progressEl);
   document.getElementById('pb-current').textContent = fmtTime(audio.currentTime);
 });
 audio.addEventListener('loadedmetadata', ()=>{
@@ -1752,11 +1778,15 @@ audio.addEventListener('loadedmetadata', ()=>{
 document.getElementById('progress').addEventListener('input', (e)=>{
   if(!audio.duration) return;
   audio.currentTime = (e.target.value/100)*audio.duration;
+  paintRangeFill(e.target);
 });
 document.getElementById('volume').addEventListener('input', (e)=>{
   audio.volume = e.target.value/100;
+  paintRangeFill(e.target);
 });
 audio.volume = 0.8;
+paintRangeFill(document.getElementById('progress'));
+paintRangeFill(document.getElementById('volume'));
 
 document.getElementById('pb-like').addEventListener('click', ()=>{
   const t = currentTrack();
@@ -2272,6 +2302,65 @@ async function renderProfileScreen(){
   }
 }
 
+/* ---------- avatar upload ---------- */
+function resizeImageToDataUrl(file, maxSize){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=> reject(new Error('Не удалось прочитать файл.'));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=> reject(new Error('Это не похоже на изображение.'));
+      img.onload = ()=>{
+        let { width, height } = img;
+        if(width > height){
+          if(width > maxSize){ height = Math.round(height * (maxSize/width)); width = maxSize; }
+        } else {
+          if(height > maxSize){ width = Math.round(width * (maxSize/height)); height = maxSize; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function applyAvatarEverywhere(url){
+  if(currentUser) currentUser.avatarUrl = url;
+  setCachedUser(currentUser);
+  const sidebarAvatar = document.getElementById('sidebar-profile-avatar');
+  if(sidebarAvatar){
+    sidebarAvatar.innerHTML = url ? `<img src="${url}" alt="">` : escapeHtml((currentUser.username||'?').slice(0,1).toUpperCase());
+  }
+  const profileAvatar = document.getElementById('profile-avatar');
+  if(profileAvatar){
+    profileAvatar.innerHTML = url ? `<img src="${url}" alt="">` : escapeHtml((currentUser.username||'?').slice(0,1).toUpperCase());
+  }
+}
+document.getElementById('avatar-file-input').addEventListener('change', async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // чтобы можно было выбрать тот же файл повторно
+  if(!file) return;
+  if(!file.type.startsWith('image/')){
+    alert('Выбери картинку (PNG/JPEG/WEBP).');
+    return;
+  }
+  const btn = document.querySelector('.avatar-upload-btn');
+  btn && btn.classList.add('uploading');
+  try{
+    const dataUrl = await resizeImageToDataUrl(file, 320);
+    const data = await api('/api/user/avatar', { method:'POST', body:{ avatarUrl: dataUrl } });
+    applyAvatarEverywhere((data.user && data.user.avatarUrl) || dataUrl);
+  }catch(err){
+    alert(err.message || 'Не удалось загрузить аватарку. Проверь связь с сервером.');
+  }finally{
+    btn && btn.classList.remove('uploading');
+  }
+});
+
 async function loadLikedArtistIds(){
   try{
     const data = await api('/api/user/artist-likes');
@@ -2511,7 +2600,7 @@ function attachAdminCardHandlers(){
       btn.addEventListener('click', async ()=>{
         const action = btn.dataset.action;
         try{
-          if(action === 'plus-grant-toggle'){ toggleForm('plus'); return; }
+          if(action === 'plus-grant-toggle'){ toggleForm('plus-grant'); return; }
           if(action === 'ban-toggle'){ toggleForm('ban'); return; }
           if(action === 'restrict-toggle'){ toggleForm('restrict'); return; }
 
