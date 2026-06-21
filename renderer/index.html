@@ -131,6 +131,31 @@ body{
 .auth-form input:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-glow);}
 .auth-form input::placeholder{color:var(--text-faint);}
 .auth-error{color:var(--red-bright);font-size:12.5px;min-height:16px;}
+.plus-gate-toast{
+  position:fixed;left:50%;bottom:104px;transform:translateX(-50%) translateY(20px);
+  background:var(--bg-elevated);border:1px solid var(--red-bright);border-radius:14px;
+  padding:14px 18px;display:flex;align-items:center;gap:12px;max-width:380px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);z-index:9999;opacity:0;
+  transition:opacity .25s ease, transform .25s ease;pointer-events:none;
+}
+.plus-gate-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.plus-gate-toast .pgt-icon{font-size:22px;flex:0 0 auto;}
+.plus-gate-toast .pgt-text{font-size:13px;line-height:1.4;color:var(--text);}
+.plus-gate-toast .pgt-text b{color:var(--red-bright);}
+.plus-gate-toast .pgt-text a{color:var(--red-bright);font-weight:600;text-decoration:none;}
+.plus-gate-toast .pgt-text a:hover{text-decoration:underline;}
+.plus-gate-toast .pgt-close{
+  margin-left:4px;flex:0 0 auto;cursor:pointer;color:var(--text-dim);
+  background:none;border:none;font-size:18px;line-height:1;padding:2px 4px;
+}
+.plus-buy-card{
+  margin-top:10px;background:var(--bg-elevated);border:1px solid var(--red);
+  border-radius:12px;padding:12px 14px;max-width:360px;
+}
+.plus-buy-card .pbc-title{font-size:13px;font-weight:700;color:var(--red-bright);margin-bottom:4px;}
+.plus-buy-card .pbc-text{font-size:12.5px;color:var(--text-dim);line-height:1.45;}
+.plus-buy-card a{color:var(--red-bright);font-weight:600;text-decoration:none;}
+.plus-buy-card a:hover{text-decoration:underline;}
 .auth-submit{width:100%;margin-top:4px;}
 .auth-foot{text-align:center;color:var(--text-faint);font-size:11px;margin-top:18px;line-height:1.5;}
 
@@ -957,7 +982,14 @@ body.has-wallpaper::before{
             BLOODPLUS
           </div>
           <div class="no-plus-hint hidden" id="profile-no-plus">
-            Подписки BLOODPLUS пока нет. Оформить можно у администратора.
+            Подписки BLOODPLUS пока нет.
+            <div class="plus-buy-card">
+              <div class="pbc-title">Оформить BLOODPLUS</div>
+              <div class="pbc-text">
+                Без подписки треки играют первые 10 секунд. Чтобы слушать без
+                ограничений — напиши в Telegram: <a href="https://t.me/bloodberss" target="_blank" rel="noopener">@bloodberss</a>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1582,6 +1614,44 @@ async function doSearch(){
 document.getElementById('search-btn').addEventListener('click', doSearch);
 document.getElementById('search-input').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
 
+/* ---------- BLOODPLUS: ограничение превью (10 сек) ---------- */
+function hasFullPlaybackAccess(){
+  if(!currentUser) return false;
+  if(currentUser.role === 'admin') return true;
+  return !!window._plusActive;
+}
+let _previewLimitHit = false;
+function showPlusGateToast(){
+  let el = document.getElementById('plus-gate-toast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'plus-gate-toast';
+    el.className = 'plus-gate-toast';
+    el.innerHTML = `
+      <span class="pgt-icon">😼</span>
+      <div class="pgt-text">
+        Без <b>BLOODPLUS</b> трек играет первые 10 секунд.
+        Оформить — в Telegram: <a href="https://t.me/bloodberss" target="_blank" rel="noopener">@bloodberss</a>
+      </div>
+      <button type="button" class="pgt-close" aria-label="Закрыть">×</button>
+    `;
+    document.body.appendChild(el);
+    el.querySelector('.pgt-close').addEventListener('click', ()=> el.classList.remove('show'));
+  }
+  el.classList.add('show');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(()=> el.classList.remove('show'), 8000);
+}
+audio.addEventListener('timeupdate', ()=>{
+  if(_previewLimitHit) return;
+  if(hasFullPlaybackAccess()) return;
+  if(audio.currentTime >= 10){
+    _previewLimitHit = true;
+    audio.pause();
+    showPlusGateToast();
+  }
+});
+
 /* ---------- player ---------- */
 function currentTrack(){ return (currentIndex>=0 && queue[currentIndex]) ? queue[currentIndex] : null; }
 function showPlayerBar(){
@@ -1610,6 +1680,7 @@ async function playQueue(list, index){
   currentIndex = index;
   const t = queue[currentIndex];
   if(!t) return;
+  _previewLimitHit = false;
   showPlayerBar();
   pushHistory(t);
   updatePlayerBar(t);
@@ -1641,7 +1712,15 @@ function updatePlayerBar(t){
 
 document.getElementById('pb-play').addEventListener('click', ()=>{
   if(!audio.src && !hlsInstance) return;
-  if(audio.paused) audio.play().catch(()=>{}); else audio.pause();
+  if(audio.paused){
+    if(_previewLimitHit && !hasFullPlaybackAccess()){
+      showPlusGateToast();
+      return;
+    }
+    audio.play().catch(()=>{});
+  } else {
+    audio.pause();
+  }
 });
 document.getElementById('pb-next').addEventListener('click', ()=> step(1));
 document.getElementById('pb-prev').addEventListener('click', ()=>{
@@ -1861,9 +1940,10 @@ setDefaultTab(getDefaultTab());
 const SERVER_URL_KEY = 'bloodberss_server_url';
 const TOKEN_KEY = 'bloodberss_token';
 const USER_CACHE_KEY = 'bloodberss_user_cache';
+const DEFAULT_SERVER_URL = 'http://192.168.0.143:4000'; // адрес сервера BLOODBERSS (Termux)
 
 function getServerUrl(){
-  try{ return localStorage.getItem(SERVER_URL_KEY) || ''; }catch(e){ return ''; }
+  try{ return localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL; }catch(e){ return DEFAULT_SERVER_URL; }
 }
 function setServerUrl(url){
   try{ localStorage.setItem(SERVER_URL_KEY, url); }catch(e){}

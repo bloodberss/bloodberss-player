@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 
 // ---- Лок интерфейса на 60 FPS ----
@@ -30,6 +30,20 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Ссылки вида target="_blank" (например, на Telegram) открываем в обычном
+  // браузере системы, а не внутри окна приложения.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  // На случай обычной навигации (без target=_blank) — тоже уводим во внешний браузер,
+  // а само окно приложения никуда не отпускаем.
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('file://')) return; // это сама страница приложения — ок
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
 }
 
 app.whenReady().then(() => {
